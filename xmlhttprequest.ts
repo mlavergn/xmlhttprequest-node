@@ -58,15 +58,6 @@ export class XMLHttpRequest {
   upload?: any;
   withCredentials = false;
 
-  // public new(): XMLHttpRequest {
-  //   console.log('NEW');
-  //   return new XMLHttpRequest();
-  // }
-
-  // public constructor() {
-  //   console.log('CONST');
-  // }
-
   /**
    * Open the request
    */
