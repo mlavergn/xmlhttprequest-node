@@ -15,11 +15,14 @@ The project goals are:
 ## RxJS
 
 The project contains an implementation of XMLHttpRequestObservable which is
-a stripped rxjs.dom.ajax clone. The intent for XMLHttpRequestObservable is to
-use it as debugging tool.
+an rxjs.dom.ajax clone. The intent for XMLHttpRequestObservable is to
+provide a drop in replacement for rxjs.dom.ajax (aka. AjaxRequest).
 
-It can be used standalone, but the project recommendation is to use rxjs.dom.ajax
-directly backed by this XMLHttpRequest implementation.
+The implementation of rxjs.dom.ajax in RxJS 5.5 is currently not compatible with
+Node and it is not intended to be extendable.
+
+XMLHttpRequestObservable doubles as a test bench for XMLHttpRequest due to it's
+ease of use and ability to generate a large volume of requests easily.
 
 ## Usage
 

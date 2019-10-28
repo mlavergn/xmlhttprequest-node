@@ -1,46 +1,21 @@
+// API definitions
+import { XMLHttpRequestW3CLevel1, XMLHttpRequestReadyState, XMLHttpRequestEvent, XMLHttpRequestProgressEvent } from './xmlhttprequesttypes';
+
+// node imports
 import * as nodehttp from 'http';
 import * as nodehttps from 'https';
 import * as nodeurl from 'url';
 
-enum XMLHttpRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
-}
-
-export interface XMLHttpRequestResponse {
-  status: number;
-  statusText: string;
-}
-
-enum XMLHttpRequestReadyState {
-  UNSENT,
-  OPENED,
-  HEADERS_RECEIVED,
-  LOADING,
-  DONE,
-}
-
-enum XMLHttpRequestEvent {
-  abort = 'abort',
-  error = 'error',
-  load = 'load',
-  loadend = 'loadend',
-  loadstart = 'loadstart',
-  progress = 'progress',
-}
-
-interface XMLHttpRequestProgressEvent {
-  loaded: number;
-  total: number;
-}
-
-export class XMLHttpRequest {
+export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
+  // node references
   private nodeRequest?: nodehttp.ClientRequest;
   private nodeOptions?: nodehttp.RequestOptions;
   private nodeResponse?: nodehttp.IncomingMessage;
 
+  // event listeners
   private listeners: { [event: string]: Function } = {};
 
+  // W3C Level 1 spec
   status?: number;
   statusText?: string;
 
@@ -49,7 +24,7 @@ export class XMLHttpRequest {
 
   response?: string;
   responseText?: string;
-  responseXML?: string;
+  responseXML?: any;
   responseType = '';
 
   ontimeout?: Function;
@@ -60,8 +35,14 @@ export class XMLHttpRequest {
 
   /**
    * Open the request
+   * W3C Level 1 spec
+   * @param method string
+   * @param url string
+   * @param async boolean optional (default: true)
+   * @param user string optional
+   * @param password string optional
    */
-  public open(method: string, url: string, async: boolean = true, user?: string, password?: string) {
+  public open(method: string, url: string, async: boolean = true, user?: string, password?: string): void {
     this.nodeOptions = nodeurl.parse(url);
     this.nodeOptions.method = method;
     this.nodeOptions.headers = {};
@@ -71,6 +52,7 @@ export class XMLHttpRequest {
 
   /**
    * Private method to trigger ready state callback
+   * @param state XMLHttpRequestReadyState
    */
   private setReadyState(state: XMLHttpRequestReadyState): void {
     if (this.readyState !== state) {
@@ -83,6 +65,9 @@ export class XMLHttpRequest {
 
   /**
    * Private method to trigger events
+   * W3C Level 1 spec
+   * @param eventName as a string
+   * @param event XMLHttpRequestProgressEvent optional
    */
   private sendEvent(eventName: string, event?: XMLHttpRequestProgressEvent): void {
     const listener = this.listeners[eventName];
@@ -91,19 +76,31 @@ export class XMLHttpRequest {
     }
   }
 
+  /**
+   * Register an event callback
+   * W3C Level 1 spec
+   * @param event name as a string
+   * @param listener Function to call on event
+   */
   public addEventListener(event: string, listener: Function): void {
     this.listeners[event] = listener;
   }
 
   /**
    * Set a request header
+   * W3C Level 1 spec
+   * @param header name as a string
+   * @param value any
    */
-  public setRequestHeader(header: string, value: any) {
+  public setRequestHeader(header: string, value: any): void {
     this.nodeOptions.headers[header] = value;
   }
 
   /**
    * Get a response header
+   * W3C Level 1 spec
+   * @param header name as a string
+   * @returns string if single value, otherwise string[]
    */
   public getResponseHeader(header: string): string | string[] {
     return this.nodeResponse.headers[header];
@@ -111,6 +108,8 @@ export class XMLHttpRequest {
 
   /**
    * Response headers as a CRLF delimited string
+   * W3C Level 1 spec
+   * @returns string result
    */
   public getAllResponseHeaders(): string {
     const kv: string[] = [];
@@ -124,6 +123,9 @@ export class XMLHttpRequest {
 
   /**
    * Send the request
+   * W3C Level 1 spec
+   * @param body optional any value to send with request
+   * @returns void
    */
   public send(body?: any): void {
     const client = (this.nodeOptions.protocol === 'http:') ? nodehttp.request : nodehttps.request;
@@ -168,6 +170,8 @@ export class XMLHttpRequest {
 
   /**
    * Abort the request
+   * W3C Level 1 spec
+   * @returns void
    */
   public abort(): void {
     this.nodeRequest.end();

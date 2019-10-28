@@ -1,11 +1,11 @@
-import { XMLHttpRequestObservable, XMLHttpRequestOptions, XMLHttpRequest } from '../rxjs/xmlhttprequestobservable';
+import { XMLHttpRequestObservable, XMLHttpRequestObservableOptions } from '../rxjs/xmlhttprequestobservable';
 
 export class XMLHttpRequestObservableTests {
   /**
    * Run the testcases
    */
   public static run(): void {
-    const options: XMLHttpRequestOptions = {
+    const options: XMLHttpRequestObservableOptions = {
       method: 'GET',
       url: 'https://httpbin.org',
       headers: {},
