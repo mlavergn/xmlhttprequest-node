@@ -9,7 +9,7 @@ export class XMLHttpRequestObservableTests {
       method: 'GET',
       url: 'https://httpbin.org',
       headers: {},
-      responseType: 'text'
+      responseType: 'text',
     };
     const xhr$ = new XMLHttpRequestObservable(options);
     xhr$.subscribe(

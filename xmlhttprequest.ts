@@ -22,7 +22,7 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   onreadystatechange?: Function;
   readyState = XMLHttpRequestReadyState.UNSENT;
 
-  response?: string;
+  response?: Buffer;
   responseText?: string;
   responseXML?: any;
   responseType = '';
@@ -140,11 +140,11 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
       });
 
       this.nodeResponse.on('data', (chunk: any) => {
-        this.response = this.response ? this.response + chunk : chunk;
-        this.responseText = String(this.response);
+        this.response = this.response ? Buffer.concat([this.response, chunk]) : Buffer.concat([chunk]);
+        this.responseText = this.response.toString();
         this.setReadyState(XMLHttpRequestReadyState.LOADING);
         this.sendEvent(XMLHttpRequestEvent.progress, <XMLHttpRequestProgressEvent>{
-          loaded: this.response.length,
+          loaded: this.response.byteLength,
           total: Number(this.getResponseHeader('Content-Length'))
         });
       });

@@ -55,7 +55,7 @@ export interface XMLHttpRequestW3CLevel1 {
   onreadystatechange?: Function;
   readyState: XMLHttpRequestReadyState;
 
-  response?: string;
+  response?: any;
   responseText?: string;
   responseXML?: any;
   responseType: string;
