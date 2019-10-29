@@ -1,14 +1,15 @@
 //
 // Node imports
 //
-import * as nodehttp from 'http';
-import * as nodehttps from 'https';
-import * as nodeurl from 'url';
+import { request as HTTP, ClientRequest, RequestOptions, IncomingMessage } from 'http';
+import { request as HTTPS } from 'https';
+import { parse as URLParse } from 'url';
+import { Transform } from 'stream';
 
 /**
  * Enum for NodeJS http/https events
  */
-enum nodeevent {
+enum NodeEvent {
   data = 'data',
   timeout = 'timeout',
   error = 'error',
@@ -61,10 +62,22 @@ enum XMLHttpRequestProtocol {
 }
 
 /**
- * Stubs for unused objects that are in the spec
+ * Stubs for unused but defined objects
  */
-export declare const XMLHttpRequestUpload: any;
 export declare const XMLHttpRequestEventTarget: any;
+
+/**
+ * Interface for XMLHttpRequestUpload
+ */
+export interface XMLHttpRequestUpload {
+  onabort?: Function;
+  onerror?: Function;
+  onload?: Function;
+  onloadstart?: Function;
+  onprogress?: Function;
+  ontimeout?: Function;
+  onloadend?: Function;
+}
 
 /**
  * Interface for progress event
@@ -72,6 +85,19 @@ export declare const XMLHttpRequestEventTarget: any;
 export interface XMLHttpRequestProgressEvent {
   loaded: number;
   total: number;
+  xhr?: XMLHttpRequest;
+}
+
+/**
+ * Enum for XMLHttpRequest protocols
+ */
+export enum XMLHttpRequestResponseType {
+  arraybuffer = 'arraybuffer',
+  blob = 'blob',
+  document = 'document',
+  json = 'json',
+  text = 'text',
+  stream = 'stream', // non-standard
 }
 
 /**
@@ -84,20 +110,11 @@ export interface XMLHttpRequestW3CLevel1 {
   onreadystatechange?: Function;
   readyState: XMLHttpRequestReadyState;
 
-  // XMLHttpRequestEventTarget
-  onabort?: Function;
-  onerror?: Function;
-  onload?: Function;
-  onloadstart?: Function;
-  onprogress?: Function;
-  ontimeout?: Function;
-  onloadend?: Function;
-
   // response
-  response: Buffer;
+  response: any;
   responseText: string;
   responseXML?: any;
-  responseType: string;
+  responseType: XMLHttpRequestResponseType;
 
   timeout: number;
 
@@ -127,9 +144,9 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   static DONE = XMLHttpRequestReadyState.DONE;
 
   // node references
-  private nodeRequest?: nodehttp.ClientRequest;
-  private nodeOptions?: nodehttp.RequestOptions;
-  private nodeResponse?: nodehttp.IncomingMessage;
+  private nodeRequest?: ClientRequest;
+  private nodeOptions?: RequestOptions;
+  private nodeResponse?: IncomingMessage;
 
   // event listeners
   private listeners: { [event: string]: Function } = {};
@@ -141,17 +158,22 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   onreadystatechange?: Function;
   readyState = XMLHttpRequestReadyState.UNSENT;
 
-  response = Buffer.allocUnsafe(0);
+  private responseBuffer = Buffer.allocUnsafe(0);
+  response: any = '';
   responseText = '';
   responseXML?: any;
-  responseType = '';
+  responseType = XMLHttpRequestResponseType.text;
 
   private responseMimeType?: string;
 
-  ontimeout?: Function;
+  private progressEvent: XMLHttpRequestProgressEvent = {
+    loaded: 0,
+    total: 0,
+  };
+
   timeout = 0;
 
-  upload?: any;
+  upload: XMLHttpRequestUpload = {};
   withCredentials = false;
 
   /**
@@ -164,7 +186,7 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    * @param password string optional
    */
   public open(method: string, url: string, async: boolean = true, user?: string, password?: string): void {
-    this.nodeOptions = nodeurl.parse(url);
+    this.nodeOptions = URLParse(url);
     this.nodeOptions.method = method;
     this.nodeOptions.headers = {};
     this.setRequestHeader(XMLHttpRequestHeader.accept, '*/*');
@@ -176,11 +198,9 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    * @param state XMLHttpRequestReadyState
    */
   private setReadyState(state: XMLHttpRequestReadyState): void {
-    if (this.readyState !== state) {
-      this.readyState = state;
-      if (this.onreadystatechange) {
-        this.onreadystatechange();
-      }
+    this.readyState = state;
+    if (this.onreadystatechange) {
+      this.onreadystatechange();
     }
   }
 
@@ -190,14 +210,18 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    * @param eventName as a string
    * @param event XMLHttpRequestProgressEvent optional
    */
-  private dispatchEvent(eventName: string, event?: XMLHttpRequestProgressEvent): void {
+  private dispatchEvent(eventName: XMLHttpRequestEvent, event?: XMLHttpRequestProgressEvent): void {
     const listener = this.listeners[eventName];
     if (listener) {
       listener();
     }
-    const callback = this['on' + eventName];
+    const callback = this.upload['on' + eventName];
     if (callback) {
-      callback();
+      if (eventName === XMLHttpRequestEvent.progress) {
+        callback(event);
+      } else {
+        callback();
+      }
     }
   }
 
@@ -266,42 +290,71 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    * @returns void
    */
   public send(body?: any): void {
-    const client = (this.nodeOptions.protocol === XMLHttpRequestProtocol.http) ? nodehttp.request : nodehttps.request;
+    const client = (this.nodeOptions.protocol === XMLHttpRequestProtocol.http) ? HTTP : HTTPS;
     if (this.timeout) {
       this.nodeOptions.timeout = this.timeout;
     }
 
-    this.nodeRequest = client(this.nodeOptions, (response: nodehttp.IncomingMessage) => {
+    this.nodeRequest = client(this.nodeOptions, (response: IncomingMessage) => {
       response.pause();
       this.nodeResponse = response;
       this.status = response.statusCode;
       this.statusText = response.statusMessage;
 
+      this.progressEvent.total = Number(this.getResponseHeader(XMLHttpRequestHeader.contentLength));
+      this.progressEvent.xhr = this;
 
       if (this.responseMimeType) {
         this.nodeResponse.headers[XMLHttpRequestHeader.mimeType] = this.responseMimeType;
       }
 
-      this.nodeResponse.on(nodeevent.error, (error) => {
+      // stream response
+      if (this.responseType === XMLHttpRequestResponseType.stream) {
+        this.response = new Transform({
+          transform(chunk, encoding, callback) {
+            this.push(chunk);
+            callback();
+          }
+        });
+        this.nodeResponse.pipe(this.response, { end: true });
+      }
+
+      this.nodeResponse.on(NodeEvent.error, (error) => {
         this.dispatchEvent(XMLHttpRequestEvent.error);
       });
 
-      this.nodeResponse.on(nodeevent.data, (chunk: any) => {
-        this.response = Buffer.concat([this.response, chunk]);
-        this.responseText = this.response.toString();
+      this.nodeResponse.on(NodeEvent.data, (chunk: Buffer) => {
+        if (this.responseType !== XMLHttpRequestResponseType.stream) {
+          this.responseBuffer = Buffer.concat([this.responseBuffer, chunk]);
+          this.responseText = this.responseBuffer.toString();
+        }
         this.setReadyState(XMLHttpRequestReadyState.LOADING);
-        this.dispatchEvent(XMLHttpRequestEvent.progress, <XMLHttpRequestProgressEvent>{
-          loaded: this.response.byteLength,
-          total: Number(this.getResponseHeader(XMLHttpRequestHeader.contentLength))
-        });
+        this.progressEvent.loaded += chunk.byteLength;
+        this.dispatchEvent(XMLHttpRequestEvent.progress, this.progressEvent);
       });
 
-      this.nodeResponse.on(nodeevent.timeout, () => {
+      this.nodeResponse.on(NodeEvent.timeout, () => {
         this.setReadyState(XMLHttpRequestReadyState.DONE);
         this.dispatchEvent(XMLHttpRequestEvent.timeout);
       });
 
-      this.nodeResponse.on(nodeevent.end, () => {
+      this.nodeResponse.on(NodeEvent.end, () => {
+        switch (this.responseType) {
+          case XMLHttpRequestResponseType.json:
+            this.responseText = this.responseBuffer.toString();
+            this.response = JSON.parse(this.responseText);
+            break;
+          case XMLHttpRequestResponseType.arraybuffer:
+          case XMLHttpRequestResponseType.blob:
+            this.response = this.responseBuffer;
+            break;
+          case XMLHttpRequestResponseType.document:
+          case XMLHttpRequestResponseType.text:
+            this.response = this.responseBuffer.toString();
+            this.responseText = this.response;
+            this.responseXML = this.response;
+            break;
+        }
         this.setReadyState(XMLHttpRequestReadyState.DONE);
         this.dispatchEvent(XMLHttpRequestEvent.load);
         this.dispatchEvent(XMLHttpRequestEvent.loadend);
@@ -313,7 +366,12 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
     });
 
     if (body) {
-      if (typeof body === 'object') {
+      if (body instanceof Transform) {
+        body.pipe(this.nodeRequest, { end: true });
+        return;
+      } else if (body instanceof ArrayBuffer) {
+        this.nodeRequest.write(body);
+      } else if (typeof body === 'object') {
         this.nodeRequest.write(JSON.stringify(body));
       } else {
         this.nodeRequest.write(String(body));

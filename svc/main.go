@@ -16,7 +16,7 @@ type testMessage struct {
 }
 
 func handlerJSON(resp http.ResponseWriter, req *http.Request) {
-	fmt.Println("handlerJSON")
+	fmt.Println("handlerJSON", req.ContentLength)
 	defer req.Body.Close()
 
 	decoder := json.NewDecoder(req.Body)
@@ -117,6 +117,7 @@ func handlerCORS(resp http.ResponseWriter, req *http.Request) {
 
 func handlerStatic(resp http.ResponseWriter, req *http.Request) {
 	fmt.Println("handlerStatic: " + req.URL.String())
+	defer req.Body.Close()
 
 	file, err := os.Open("." + req.URL.String())
 	if err != nil {
@@ -138,6 +139,8 @@ func handlerStatic(resp http.ResponseWriter, req *http.Request) {
 
 func handlerBrowser(resp http.ResponseWriter, req *http.Request) {
 	fmt.Println("handlerBrowser: " + req.URL.String())
+	defer req.Body.Close()
+
 	url := req.URL.String()
 	if req.URL.String() == "/" {
 		url = "/index.html"
