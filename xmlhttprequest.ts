@@ -5,30 +5,24 @@ import * as nodehttp from 'http';
 import * as nodehttps from 'https';
 import * as nodeurl from 'url';
 
+/**
+ * Enum for NodeJS http/https events
+ */
+enum nodeevent {
+  data = 'data',
+  timeout = 'timeout',
+  error = 'error',
+  end = 'end',
+}
+
 //
 // API definition
 //
 
 /**
- * Enum for XMLHttpRequest methods
- */
-export enum XMLHttpRequestMethod {
-  GET = 'GET',
-  POST = 'POST',
-  OPTION = 'OPTION',
-}
-
-/**
- * Enum for XMLHttpRequest status codes
- */
-export enum XMLHttpRequestStatusCode {
-  OK = 200,
-}
-
-/**
  * Enum for XMLHttpRequest readyState
  */
-export enum XMLHttpRequestReadyState {
+enum XMLHttpRequestReadyState {
   UNSENT,
   OPENED,
   HEADERS_RECEIVED,
@@ -39,14 +33,38 @@ export enum XMLHttpRequestReadyState {
 /**
  * Enum for XMLHttpRequest events
  */
-export enum XMLHttpRequestEvent {
+enum XMLHttpRequestEvent {
   abort = 'abort',
   error = 'error',
   load = 'load',
-  loadend = 'loadend',
   loadstart = 'loadstart',
   progress = 'progress',
+  timeout = 'timeout',
+  loadend = 'loadend',
 }
+
+/**
+ * Enum for XMLHttpRequest headers
+ */
+enum XMLHttpRequestHeader {
+  accept = 'accept',
+  contentLength = 'content-length',
+  mimeType = 'mime-type',
+}
+
+/**
+ * Enum for XMLHttpRequest protocols
+ */
+enum XMLHttpRequestProtocol {
+  http = 'http:',
+  https = 'https:',
+}
+
+/**
+ * Stubs for unused objects that are in the spec
+ */
+export declare const XMLHttpRequestUpload: any;
+export declare const XMLHttpRequestEventTarget: any;
 
 /**
  * Interface for progress event
@@ -60,28 +78,39 @@ export interface XMLHttpRequestProgressEvent {
  * Interface for W3C XMLHttpRequest Level 1
  */
 export interface XMLHttpRequestW3CLevel1 {
-  status?: number;
-  statusText?: string;
+  status: number;
+  statusText: string;
 
   onreadystatechange?: Function;
   readyState: XMLHttpRequestReadyState;
 
-  response?: any;
-  responseText?: string;
+  // XMLHttpRequestEventTarget
+  onabort?: Function;
+  onerror?: Function;
+  onload?: Function;
+  onloadstart?: Function;
+  onprogress?: Function;
+  ontimeout?: Function;
+  onloadend?: Function;
+
+  // response
+  response: Buffer;
+  responseText: string;
   responseXML?: any;
   responseType: string;
 
-  ontimeout?: Function;
   timeout: number;
 
-  upload?: any;
+  upload?: XMLHttpRequestUpload;
   withCredentials: boolean;
 
+  // methods
   open(method: string, url: string, async?: boolean, user?: string, password?: string): void;
   addEventListener(event: string, listener: Function): void;
   setRequestHeader(header: string, value: any): void;
   getResponseHeader(header: string): string | string[];
   getAllResponseHeaders(): string;
+  overrideMimeType(mimeType: string);
   send(body?: any): void;
   abort(): void;
 }
@@ -91,6 +120,12 @@ export interface XMLHttpRequestW3CLevel1 {
 //
 
 export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
+  static UNSENT = XMLHttpRequestReadyState.UNSENT;
+  static OPENED = XMLHttpRequestReadyState.OPENED;
+  static HEADERS_RECEIVED = XMLHttpRequestReadyState.HEADERS_RECEIVED;
+  static LOADING = XMLHttpRequestReadyState.LOADING;
+  static DONE = XMLHttpRequestReadyState.DONE;
+
   // node references
   private nodeRequest?: nodehttp.ClientRequest;
   private nodeOptions?: nodehttp.RequestOptions;
@@ -100,16 +135,18 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   private listeners: { [event: string]: Function } = {};
 
   // W3C Level 1 spec
-  status?: number;
-  statusText?: string;
+  status = 0;
+  statusText = '';
 
   onreadystatechange?: Function;
   readyState = XMLHttpRequestReadyState.UNSENT;
 
-  response?: Buffer;
-  responseText?: string;
+  response = Buffer.allocUnsafe(0);
+  responseText = '';
   responseXML?: any;
   responseType = '';
+
+  private responseMimeType?: string;
 
   ontimeout?: Function;
   timeout = 0;
@@ -130,7 +167,7 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
     this.nodeOptions = nodeurl.parse(url);
     this.nodeOptions.method = method;
     this.nodeOptions.headers = {};
-    this.setRequestHeader('Accept', '*/*');
+    this.setRequestHeader(XMLHttpRequestHeader.accept, '*/*');
     this.setReadyState(XMLHttpRequestReadyState.OPENED);
   }
 
@@ -148,15 +185,19 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   }
 
   /**
-   * Private method to trigger events
+   * Private method to dispatch events
    * W3C Level 1 spec
    * @param eventName as a string
    * @param event XMLHttpRequestProgressEvent optional
    */
-  private sendEvent(eventName: string, event?: XMLHttpRequestProgressEvent): void {
+  private dispatchEvent(eventName: string, event?: XMLHttpRequestProgressEvent): void {
     const listener = this.listeners[eventName];
     if (listener) {
       listener();
+    }
+    const callback = this['on' + eventName];
+    if (callback) {
+      callback();
     }
   }
 
@@ -166,7 +207,7 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    * @param event name as a string
    * @param listener Function to call on event
    */
-  public addEventListener(event: string, listener: Function): void {
+  public addEventListener(event: XMLHttpRequestEvent, listener: Function): void {
     this.listeners[event] = listener;
   }
 
@@ -183,16 +224,18 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   /**
    * Get a response header
    * W3C Level 1 spec
+   * NOTE: NodeJS http/https lowercases for all header names
    * @param header name as a string
    * @returns string if single value, otherwise string[]
    */
   public getResponseHeader(header: string): string | string[] {
-    return this.nodeResponse.headers[header];
+    return this.nodeResponse.headers[header.toLowerCase()];
   }
 
   /**
    * Response headers as a CRLF delimited string
    * W3C Level 1 spec
+   * NOTE: NodeJS http/https lowercases for all header names
    * @returns string result
    */
   public getAllResponseHeaders(): string {
@@ -206,38 +249,67 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
   }
 
   /**
+   * Override the response mime type header
+   * W3C Level 1 spec
+   * @param mimeType string to override response mimeType
+   */
+  public overrideMimeType(mimeType: string): void {
+    if (this.readyState === XMLHttpRequestReadyState.UNSENT) {
+      this.responseMimeType = mimeType;
+    }
+  }
+
+  /**
    * Send the request
    * W3C Level 1 spec
    * @param body optional any value to send with request
    * @returns void
    */
   public send(body?: any): void {
-    const client = (this.nodeOptions.protocol === 'http:') ? nodehttp.request : nodehttps.request;
+    const client = (this.nodeOptions.protocol === XMLHttpRequestProtocol.http) ? nodehttp.request : nodehttps.request;
+    if (this.timeout) {
+      this.nodeOptions.timeout = this.timeout;
+    }
+
     this.nodeRequest = client(this.nodeOptions, (response: nodehttp.IncomingMessage) => {
+      response.pause();
       this.nodeResponse = response;
       this.status = response.statusCode;
       this.statusText = response.statusMessage;
-      this.setReadyState(XMLHttpRequestReadyState.HEADERS_RECEIVED);
 
-      this.nodeResponse.on('error', (error) => {
-        this.sendEvent(XMLHttpRequestEvent.error);
+
+      if (this.responseMimeType) {
+        this.nodeResponse.headers[XMLHttpRequestHeader.mimeType] = this.responseMimeType;
+      }
+
+      this.nodeResponse.on(nodeevent.error, (error) => {
+        this.dispatchEvent(XMLHttpRequestEvent.error);
       });
 
-      this.nodeResponse.on('data', (chunk: any) => {
-        this.response = this.response ? Buffer.concat([this.response, chunk]) : Buffer.concat([chunk]);
+      this.nodeResponse.on(nodeevent.data, (chunk: any) => {
+        this.response = Buffer.concat([this.response, chunk]);
         this.responseText = this.response.toString();
         this.setReadyState(XMLHttpRequestReadyState.LOADING);
-        this.sendEvent(XMLHttpRequestEvent.progress, <XMLHttpRequestProgressEvent>{
+        this.dispatchEvent(XMLHttpRequestEvent.progress, <XMLHttpRequestProgressEvent>{
           loaded: this.response.byteLength,
-          total: Number(this.getResponseHeader('Content-Length'))
+          total: Number(this.getResponseHeader(XMLHttpRequestHeader.contentLength))
         });
       });
 
-      this.nodeResponse.on('end', () => {
+      this.nodeResponse.on(nodeevent.timeout, () => {
         this.setReadyState(XMLHttpRequestReadyState.DONE);
-        this.sendEvent(XMLHttpRequestEvent.load);
-        this.sendEvent(XMLHttpRequestEvent.loadend);
+        this.dispatchEvent(XMLHttpRequestEvent.timeout);
       });
+
+      this.nodeResponse.on(nodeevent.end, () => {
+        this.setReadyState(XMLHttpRequestReadyState.DONE);
+        this.dispatchEvent(XMLHttpRequestEvent.load);
+        this.dispatchEvent(XMLHttpRequestEvent.loadend);
+      });
+
+      response.resume();
+      this.setReadyState(XMLHttpRequestReadyState.HEADERS_RECEIVED);
+      this.dispatchEvent(XMLHttpRequestEvent.loadstart);
     });
 
     if (body) {
@@ -249,7 +321,7 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
     }
 
     this.nodeRequest.end();
-    this.sendEvent(XMLHttpRequestEvent.loadstart);
+    this.dispatchEvent(XMLHttpRequestEvent.loadstart);
   }
 
   /**
@@ -259,6 +331,6 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
    */
   public abort(): void {
     this.nodeRequest.end();
-    this.sendEvent(XMLHttpRequestEvent.abort);
+    this.dispatchEvent(XMLHttpRequestEvent.abort);
   }
 }
