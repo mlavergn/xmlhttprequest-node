@@ -14,15 +14,11 @@ The project goals are:
 
 ## RxJS
 
-The project contains an implementation of XMLHttpRequestObservable which is
-an rxjs.dom.ajax clone. The intent for XMLHttpRequestObservable is to
-provide a drop in replacement for rxjs.dom.ajax (aka. AjaxRequest).
-
 The implementation of rxjs.dom.ajax in RxJS 5.5 is currently not compatible with
-Node and it is not intended to be extendable.
+NodeJS since it lacks a native XMLHttpRequest Object.
 
-XMLHttpRequestObservable doubles as a test bench for XMLHttpRequest due to it's
-ease of use and ability to generate a large volume of requests easily.
+XMLHttpRequest is specifically designed to provide the necessary functionality
+to use rxjs/observable/dom/ajax in NodeJS applications.
 
 ## Usage
 
@@ -45,6 +41,18 @@ it as a local module
 
   npm install xmlhttprequest-node --save-dev
 
+  # to use in NodeJS code without RxJS
   > cat somefile.ts
   import { XMLHttpRequest } from 'xmlhttprequest-node/xmlhttprequest';
+
+  # to use in NodeJS code as XMLHttpRequest for RxJS
+  > cat somefile.ts
+  import { XMLHttpRequest } from 'xmlhttprequest-node/xmlhttprequest';
+  (global as any).XMLHttpRequest = XMLHttpRequest;
+
+  # to use in shared Browser / NodeJS code as XMLHttpRequest for RxJS
+  > cat somefile.ts
+  if (this.window) {
+    (global as any).XMLHttpRequest = require('xmlhttprequest-node/xmlhttprequest').XMLHttpRequest;
+  }
 ```

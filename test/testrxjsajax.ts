@@ -1,5 +1,6 @@
 // set the impl of XMLHttpRequest at global scope
-(global as any).XMLHttpRequest = require('../xmlhttprequest').XMLHttpRequest;
+import { XMLHttpRequest } from '../xmlhttprequest';
+(global as any).XMLHttpRequest = XMLHttpRequest;
 
 import { ajax } from 'rxjs/observable/dom/ajax';
 import { AjaxRequest, AjaxResponse } from 'rxjs/observable/dom/AjaxObservable';
@@ -12,8 +13,8 @@ export class RxjsAjaxTests {
    */
   public static run(): void {
     const tests = new RxjsAjaxTests();
-    // tests.testGetHTTPS();
-    // tests.testPostHTTPS();
+    tests.testGetHTTPS();
+    tests.testPostHTTPS();
     tests.testBlob();
   }
 
