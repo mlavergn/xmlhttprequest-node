@@ -1,3 +1,5 @@
+import { Test } from './test';
+
 import { XMLHttpRequest, XMLHttpRequestResponseType } from '../xmlhttprequest';
 import { Transform } from 'stream';
 
@@ -21,9 +23,11 @@ export class XMLHttpRequestTests {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', 'http://httpbin.org');
     xhr.onreadystatechange = () => {
-      console.log(`Test HTTP GET: ${xhr.status} : ${xhr.readyState}`);
-      if (xhr.readyState === 4) {
-        console.log(xhr.responseText);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testGetHTTP status', xhr.status === 200);
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testGetHTTP read', xhr.responseText.length > 100);
       }
     };
     xhr.send();
@@ -36,9 +40,11 @@ export class XMLHttpRequestTests {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'http://httpbin.org/post');
     xhr.onreadystatechange = () => {
-      console.log(`Test HTTP POST: ${xhr.status} : ${xhr.readyState}`);
-      if (xhr.readyState === 4) {
-        console.log(xhr.responseText);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testPostHTTP status', xhr.status === 200);
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testPostHTTP read', xhr.responseText.length > 10);
       }
     };
     xhr.send('{foo: 1}');
@@ -51,9 +57,11 @@ export class XMLHttpRequestTests {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', 'https://httpbin.org');
     xhr.onreadystatechange = () => {
-      console.log(`Test HTTPS GET: ${xhr.status} : ${xhr.readyState}`);
-      if (xhr.readyState === 4) {
-        console.log(xhr.responseText);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testGetHTTPS status', xhr.status === 200);
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testGetHTTPS read', xhr.responseText.length > 100);
       }
     };
     xhr.send();
@@ -66,9 +74,11 @@ export class XMLHttpRequestTests {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'https://httpbin.org/post');
     xhr.onreadystatechange = () => {
-      console.log(`Test HTTPS POST: ${xhr.status} : ${xhr.readyState}`);
-      if (xhr.readyState === 4) {
-        console.log(xhr.responseText);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testPostHTTPS status', xhr.status === 200);
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testPostHTTPS read', xhr.responseText.length > 10);
       }
     };
     xhr.send({ foo: 2 });
@@ -82,9 +92,11 @@ export class XMLHttpRequestTests {
     xhr.responseType = XMLHttpRequestResponseType.blob;
     xhr.open('GET', 'http://127.0.0.1:8000/static/banksy.jpg');
     xhr.onreadystatechange = () => {
-      console.log(`Test BLOB: ${xhr.status} : ${xhr.readyState}`);
-      if (xhr.readyState === 4) {
-        console.log(xhr.response.byteLength);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testBlob status', xhr.status === 200);
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testBlob read', xhr.response.byteLength === 125761);
       }
     };
     xhr.send();
@@ -98,12 +110,12 @@ export class XMLHttpRequestTests {
     xhr.responseType = XMLHttpRequestResponseType.stream;
     xhr.open('POST', 'http://127.0.0.1:8000/json');
     xhr.onreadystatechange = () => {
-      console.log(`Test STREAM: ${xhr.status} : ${xhr.readyState}`);
-
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testStream status', xhr.status === 200);
+      }
       (<Transform>xhr.response).on('data', (data: Buffer) => {
-        console.log(data.toString());
+        Test.isTrue('XHR::testStream read', data.byteLength > 0);
       });
-
     };
 
     const reqStream = new Transform({
@@ -135,12 +147,16 @@ export class XMLHttpRequestTests {
     xhr.responseType = XMLHttpRequestResponseType.stream;
     xhr.open('GET', 'http://127.0.0.1:8000/static/banksy.jpg');
     xhr.onreadystatechange = () => {
-      console.log(`Test STREAM: ${xhr.status} : ${xhr.readyState}`);
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        Test.isTrue('XHR::testStreamBlob status', xhr.status === 200);
+      }
       if (xhr.readyState === XMLHttpRequest.LOADING) {
         (<Transform>xhr.response).on('data', (data: Buffer) => {
           bytes += data.byteLength;
-          console.log(bytes);
         });
+      }
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        Test.isTrue('XHR::testStreamBlob done', bytes === 125761);
       }
     };
     xhr.send();

@@ -1,3 +1,5 @@
+import { Test } from './test';
+
 // set the impl of XMLHttpRequest at global scope
 import { XMLHttpRequest, XMLHttpRequestProgressEvent } from '../xmlhttprequest';
 (global as any).XMLHttpRequest = XMLHttpRequest;
@@ -8,7 +10,8 @@ import { AjaxRequest, AjaxResponse } from 'rxjs/observable/dom/AjaxObservable';
 
 import { Transform } from 'stream';
 
-import * as nodecrypto from 'crypto';
+import { interval } from 'rxjs/observable/interval';
+import 'rxjs/add/operator/take';
 
 export class RxjsAjaxTests {
   /**
@@ -20,12 +23,20 @@ export class RxjsAjaxTests {
     tests.testPostHTTPS();
     tests.testBlob();
     tests.testStreamBlob();
+    tests.testStream();
+    // wait before running the Rx lifecyle report
+    interval(2000).take(1).subscribe(
+      () => {
+        Test.groups.rxreport();
+      }
+    );
   }
 
   /**
    * GET
    */
   public testGetHTTPS(): void {
+    Test.rxcreate('AJAX::testGetHTTPS');
     const options: AjaxRequest = {
       method: 'GET',
       url: 'https://httpbin.org',
@@ -35,7 +46,15 @@ export class RxjsAjaxTests {
     const xhr$ = ajax(options);
     xhr$.subscribe(
       (response) => {
-        console.log(`Test HTTPS GET: ${response.status}`);
+        Test.rxnext('AJAX::testGetHTTPS');
+        Test.isTrue('AJAX::testGetHTTPS status', response.status === 200);
+        Test.isTrue('AJAX::testGetHTTPS read', response.response.length > 10);
+      },
+      (error) => {
+        Test.rxerror('AJAX::testGetHTTPS', error);
+      },
+      () => {
+        Test.rxcomplete('AJAX::testGetHTTPS');
       }
     );
   }
@@ -44,6 +63,7 @@ export class RxjsAjaxTests {
    * POST
    */
   public testPostHTTPS(): void {
+    Test.rxcreate('AJAX::testPostHTTPS');
     const options: AjaxRequest = {
       method: 'POST',
       url: 'https://httpbin.org/post',
@@ -53,8 +73,16 @@ export class RxjsAjaxTests {
     };
     const xhr$ = ajax(options);
     xhr$.subscribe(
-      (response) => {
-        console.log(`Test HTTPS GET: ${response.status} ${response.response}`);
+      (response: AjaxResponse) => {
+        Test.rxnext('AJAX::testPostHTTPS');
+        Test.isTrue('AJAX::testPostHTTPS status', response.status === 200);
+        Test.isTrue('AJAX::testPostHTTPS read', response.response.length > 10);
+      },
+      (error) => {
+        Test.rxerror('AJAX::testPostHTTPS', error);
+      },
+      () => {
+        Test.rxcomplete('AJAX::testPostHTTPS');
       }
     );
   }
@@ -63,9 +91,11 @@ export class RxjsAjaxTests {
    * POST
    */
   public testBlob(): void {
+    Test.rxcreate('AJAX::testBlob');
     const progress = new Subscriber(
       (e: XMLHttpRequestProgressEvent) => {
-        console.log('PROGRESS testStreamBlob', e.loaded, e.xhr.status);
+        Test.rxprogress('AJAX::testBlob');
+        Test.isTrue('AJAX::testBlob', e.xhr.status === 200 && e.loaded > 0, 'PROGRESS');
       }
     );
     const options: AjaxRequest = {
@@ -78,17 +108,16 @@ export class RxjsAjaxTests {
     const xhr$ = ajax(options);
     xhr$.subscribe(
       (response) => {
+        Test.rxnext('AJAX::testBlob');
+        Test.isTrue('AJAX::testBlob status', response.status === 200);
         const buffer = response.response;
-        console.log(`Test Blob GET: ${response.status} ${buffer.byteLength}`);
-        if (response.status !== 200) {
-          console.error('FAIL', 'status');
-        }
-        const hash = nodecrypto.createHash('md5').update(buffer).digest('hex');
-        if (hash !== 'ec5997c748d28d59941ccb3c51462e29') {
-          console.error('FAIL', 'md5sum');
-        } else {
-          console.log('PASS');
-        }
+        Test.isMd5('AJAX::testBlob read', buffer, 'ec5997c748d28d59941ccb3c51462e29');
+      },
+      (error) => {
+        Test.rxerror('AJAX::testBlob', error);
+      },
+      () => {
+        Test.rxcomplete('AJAX::testBlob');
       }
     );
   }
@@ -97,9 +126,11 @@ export class RxjsAjaxTests {
    * Stream BLOB
    */
   public testStreamBlob(): void {
+    Test.rxcreate('AJAX::testStreamBlob');
     const progress = new Subscriber(
       (e: XMLHttpRequestProgressEvent) => {
-        console.log('PROGRESS testStreamBlob', e.loaded, e.xhr.status);
+        Test.rxprogress('AJAX::testStreamBlob');
+        Test.isTrue('AJAX::testStreamBlob', e.xhr.status === 200 && e.loaded > 0, 'PROGRESS');
       }
     );
     const options: AjaxRequest = {
@@ -113,19 +144,17 @@ export class RxjsAjaxTests {
     const xhr$ = ajax(options);
     xhr$.subscribe(
       (response: any) => {
-        console.log(`NEXT Blob GET: ${response.status}`);
-        if (response.status !== 200) {
-          console.error('FAIL', 'status');
-        }
+        Test.rxnext('AJAX::testStreamBlob');
+        Test.isTrue('AJAX::testStreamBlob status', response.status === 200);
         (<Transform>response.response).on('data', (data: Buffer) => {
-          console.log(data.byteLength);
+          Test.isTrue('AJAX::testStreamBlob read', data.byteLength > 0);
         });
       },
       (error) => {
-        console.log('ERROR testStreamBlob', error);
+        Test.rxerror('AJAX::testStreamBlob', error);
       },
       () => {
-        console.log('COMPLETE testStreamBlob');
+        Test.rxcomplete('AJAX::testStreamBlob');
       }
     );
   }
@@ -134,6 +163,7 @@ export class RxjsAjaxTests {
    * Stream
    */
   public testStream(): void {
+    Test.rxcreate('AJAX::testStream');
     const reqStream = new Transform({
       transform(chunk, encoding, callback) {
         this.push(chunk);
@@ -164,14 +194,17 @@ export class RxjsAjaxTests {
 
     xhr$.subscribe(
       (response: any) => {
-        console.log(`Test Blob GET: ${response.status}`);
-        if (response.status !== 200) {
-          console.error('FAIL', 'status');
-        }
-
+        Test.rxnext('AJAX::testStream');
+        Test.isTrue('AJAX::testStream status', response.status === 200);
         (<Transform>response.response).on('data', (data: Buffer) => {
-          console.log(data.toString());
+          Test.isTrue('AJAX::testStream read', data.byteLength > 10);
         });
+      },
+      (error) => {
+        Test.rxerror('AJAX::testStream', error);
+      },
+      () => {
+        Test.rxcomplete('AJAX::testStream');
       }
     );
   }

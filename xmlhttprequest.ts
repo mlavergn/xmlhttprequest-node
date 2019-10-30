@@ -296,7 +296,6 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
     }
 
     this.nodeRequest = client(this.nodeOptions, (response: IncomingMessage) => {
-      response.pause();
       this.nodeResponse = response;
       this.status = response.statusCode;
       this.statusText = response.statusMessage;
@@ -316,7 +315,6 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
             callback();
           }
         });
-        this.nodeResponse.pipe(this.response, { end: true });
       }
 
       this.nodeResponse.on(NodeEvent.error, (error) => {
@@ -327,6 +325,12 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
         if (this.responseType !== XMLHttpRequestResponseType.stream) {
           this.responseBuffer = Buffer.concat([this.responseBuffer, chunk]);
           this.responseText = this.responseBuffer.toString();
+        } else {
+          this.response.write(chunk);
+          // NOTE: using pipe instead of write results in
+          // the handler closing the response on EOF breaking
+          // event handling
+          // this.nodeResponse.pipe(this.response, { end: false });
         }
         this.setReadyState(XMLHttpRequestReadyState.LOADING);
         this.progressEvent.loaded += chunk.byteLength;
@@ -360,7 +364,6 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
         this.dispatchEvent(XMLHttpRequestEvent.loadend);
       });
 
-      response.resume();
       this.setReadyState(XMLHttpRequestReadyState.HEADERS_RECEIVED);
       this.dispatchEvent(XMLHttpRequestEvent.loadstart);
     });
