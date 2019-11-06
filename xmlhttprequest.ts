@@ -5,6 +5,7 @@ import { request as HTTP, ClientRequest, RequestOptions, IncomingMessage } from 
 import { request as HTTPS } from 'https';
 import { parse as URLParse } from 'url';
 import { Transform } from 'stream';
+import { threadId } from 'worker_threads';
 
 /**
  * Enum for NodeJS http/https events
@@ -317,9 +318,18 @@ export class XMLHttpRequest implements XMLHttpRequestW3CLevel1 {
         });
       }
 
-      this.nodeResponse.on(NodeEvent.error, (error) => {
+      // request events
+
+      this.nodeRequest.on(NodeEvent.error, (error) => {
         this.dispatchEvent(XMLHttpRequestEvent.error);
       });
+
+      this.nodeRequest.on(NodeEvent.timeout, (error) => {
+        this.dispatchEvent(XMLHttpRequestEvent.timeout);
+        this.abort();
+      });
+
+      // response events
 
       this.nodeResponse.on(NodeEvent.data, (chunk: Buffer) => {
         if (this.responseType !== XMLHttpRequestResponseType.stream) {

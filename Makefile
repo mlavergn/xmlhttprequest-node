@@ -9,10 +9,10 @@
 deps:
 	npm install typescript rxjs @types/node tslint rxjs-tslint-rules --save-dev
 
-lint:
+lint: clean
 	./node_modules/tslint/bin/tslint --project tslint.json **.ts test/**.ts
 
-build: clean lint
+build: lint
 	# ES5 for IE11 compat
 	tsc -t ES5 --lib es2017,dom --alwaysStrict -d -diagnostics **.ts
 
